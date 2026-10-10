@@ -1,0 +1,8 @@
+{"isWasteImage": true, "segregationScore": 35, "tip": "Keep wet kitchen waste in a separate bin so the plastic stays clean and sellable.",
+ "items": [
+  {"name": "water bottles", "material": "PET_BOTTLE", "count": 3, "estWeightKg": 0.09, "brand": "Bisleri"},
+  {"name": "chips packets", "material": "MULTILAYER_PACKET", "count": 4, "estWeightKg": 0.03, "brand": "Lay's"},
+  {"name": "milk pouches", "material": "MILK_POUCH", "count": 2, "estWeightKg": 0.01, "brand": "Amul"},
+  {"name": "vegetable peels", "material": "WET_ORGANIC", "count": 1, "estWeightKg": 0.6, "brand": null},
+  {"name": "newspaper", "material": "PAPER", "count": 5, "estWeightKg": 0.1, "brand": null}
+ ]}

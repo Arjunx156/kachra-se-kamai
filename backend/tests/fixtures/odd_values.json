@@ -1,0 +1,6 @@
+{"isWasteImage": true, "segregationScore": 140, "tip": "Rinse tins before binning.",
+ "items": [
+  {"name": "mystery blob", "material": "STYROFOAM", "count": 1, "estWeightKg": 0.2, "brand": "unknown"},
+  {"name": "huge pile", "material": "metal", "count": 2.6, "estWeightKg": 55, "brand": ""},
+  {"name": "speck", "material": "PAPER", "count": 0, "estWeightKg": 0.0001, "brand": null}
+ ]}

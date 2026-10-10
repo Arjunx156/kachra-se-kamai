@@ -1,0 +1,295 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Kachra se Kamai - snap your bin, earn from your waste (Environmental Hacks 2026)
+
+Parameters:
+  ModelId:
+    Type: String
+    Default: us.amazon.nova-lite-v1:0
+    Description: Bedrock model / inference profile for bin vision (must accept image input)
+  CoachModelId:
+    Type: String
+    Default: us.amazon.nova-lite-v1:0
+    Description: Bedrock model / inference profile for the Strands coach agent
+  AdminKey:
+    Type: String
+    NoEcho: true
+    MinLength: 12
+    Description: Shared secret for /admin/* (x-admin-key header). Hackathon-level protection only.
+  MinBundleKg:
+    Type: String
+    Default: "1.5"
+    Description: DEMO - recyclable kg per society before a pickup bundle is created
+  TargetKg:
+    Type: String
+    Default: "100"
+    Description: DEMO - kg diverted at which the illustrative mountain reaches half height
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 29
+    MemorySize: 512
+    Architectures: [arm64]
+    CodeUri: src/
+    Environment:
+      Variables:
+        USERS_TABLE: !Ref UsersTable
+        SOCIETIES_TABLE: !Ref SocietiesTable
+        SCANS_TABLE: !Ref ScansTable
+        BUNDLES_TABLE: !Ref BundlesTable
+        RATES_TABLE: !Ref RatesTable
+        STATS_TABLE: !Ref StatsTable
+        PHOTO_BUCKET: !Ref PhotoBucket
+        MODEL_ID: !Ref ModelId
+        COACH_MODEL_ID: !Ref CoachModelId
+        MIN_BUNDLE_KG: !Ref MinBundleKg
+        TARGET_KG: !Ref TargetKg
+
+Resources:
+  # ---------------- API ----------------
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins: ["*"]
+        AllowMethods: [GET, POST, PUT, OPTIONS]
+        AllowHeaders: ["*"]
+        MaxAge: 600
+
+  # ---------------- Storage ----------------
+  PhotoBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: ["*"]
+            AllowedMethods: [PUT, GET]
+            AllowedHeaders: ["*"]
+            MaxAge: 3000
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireScanPhotos
+            Status: Enabled
+            Prefix: scans/
+            ExpirationInDays: 30
+
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions: [{AttributeName: userId, AttributeType: S}]
+      KeySchema: [{AttributeName: userId, KeyType: HASH}]
+
+  SocietiesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions: [{AttributeName: societyId, AttributeType: S}]
+      KeySchema: [{AttributeName: societyId, KeyType: HASH}]
+
+  ScansTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - {AttributeName: userId, AttributeType: S}
+        - {AttributeName: scanId, AttributeType: S}
+        - {AttributeName: status, AttributeType: S}
+        - {AttributeName: societyId, AttributeType: S}
+        - {AttributeName: createdAt, AttributeType: S}
+      KeySchema:
+        - {AttributeName: userId, KeyType: HASH}
+        - {AttributeName: scanId, KeyType: RANGE}
+      GlobalSecondaryIndexes:
+        - IndexName: status-index
+          KeySchema:
+            - {AttributeName: status, KeyType: HASH}
+            - {AttributeName: createdAt, KeyType: RANGE}
+          Projection: {ProjectionType: ALL}
+        - IndexName: society-index
+          KeySchema:
+            - {AttributeName: societyId, KeyType: HASH}
+            - {AttributeName: createdAt, KeyType: RANGE}
+          Projection: {ProjectionType: ALL}
+
+  BundlesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - {AttributeName: bundleId, AttributeType: S}
+        - {AttributeName: status, AttributeType: S}
+        - {AttributeName: createdAt, AttributeType: S}
+      KeySchema: [{AttributeName: bundleId, KeyType: HASH}]
+      GlobalSecondaryIndexes:
+        - IndexName: status-index
+          KeySchema:
+            - {AttributeName: status, KeyType: HASH}
+            - {AttributeName: createdAt, KeyType: RANGE}
+          Projection: {ProjectionType: ALL}
+
+  RatesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions: [{AttributeName: material, AttributeType: S}]
+      KeySchema: [{AttributeName: material, KeyType: HASH}]
+
+  StatsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions: [{AttributeName: scope, AttributeType: S}]
+      KeySchema: [{AttributeName: scope, KeyType: HASH}]
+
+  # ---------------- Layer ----------------
+  StrandsLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      Description: Strands Agents SDK (AWS open source) for the coach agent
+      ContentUri: layers/strands/
+      CompatibleRuntimes: [python3.12]
+      CompatibleArchitectures: [arm64]
+    Metadata:
+      BuildMethod: python3.12
+      BuildArchitecture: arm64
+
+  # ---------------- Functions ----------------
+  StatsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers.stats.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy: {TableName: !Ref StatsTable}
+        - DynamoDBReadPolicy: {TableName: !Ref SocietiesTable}
+      Events:
+        Health: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /health, Method: GET}}
+        City: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /stats/city, Method: GET}}
+        Leaderboard: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /leaderboard, Method: GET}}
+
+  UsersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers.users.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy: {TableName: !Ref UsersTable}
+        - DynamoDBReadPolicy: {TableName: !Ref SocietiesTable}
+        - DynamoDBReadPolicy: {TableName: !Ref ScansTable}
+        - DynamoDBReadPolicy: {TableName: !Ref StatsTable}
+      Events:
+        CreateUser: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /users, Method: POST}}
+        Me: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /me, Method: GET}}
+
+  UploadsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers.uploads.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy: {TableName: !Ref UsersTable}
+        - S3WritePolicy: {BucketName: !Ref PhotoBucket}
+      Events:
+        Upload: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /uploads, Method: POST}}
+
+  ScansFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers.scans.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy: {TableName: !Ref ScansTable}
+        - DynamoDBCrudPolicy: {TableName: !Ref StatsTable}
+        - DynamoDBReadPolicy: {TableName: !Ref UsersTable}
+        - DynamoDBReadPolicy: {TableName: !Ref SocietiesTable}
+        - DynamoDBReadPolicy: {TableName: !Ref RatesTable}
+        - S3ReadPolicy: {BucketName: !Ref PhotoBucket}
+        - Statement:
+            - Effect: Allow
+              Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
+              Resource: "*"
+      Events:
+        Create: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /scans, Method: POST}}
+        List: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /scans, Method: GET}}
+        Get: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /scans/{scanId}, Method: GET}}
+
+  BundlesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers.bundles.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy: {TableName: !Ref BundlesTable}
+        - DynamoDBCrudPolicy: {TableName: !Ref ScansTable}
+        - DynamoDBCrudPolicy: {TableName: !Ref StatsTable}
+        - DynamoDBReadPolicy: {TableName: !Ref UsersTable}
+        - DynamoDBReadPolicy: {TableName: !Ref SocietiesTable}
+        - DynamoDBReadPolicy: {TableName: !Ref RatesTable}
+      Events:
+        Build: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /bundles/build, Method: POST}}
+        List: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /bundles, Method: GET}}
+        Get: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /bundles/{bundleId}, Method: GET}}
+        Accept: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /bundles/{bundleId}/accept, Method: POST}}
+        Collect: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /bundles/{bundleId}/collect, Method: POST}}
+
+  RatesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers.rates.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy: {TableName: !Ref RatesTable}
+        - DynamoDBReadPolicy: {TableName: !Ref UsersTable}
+      Events:
+        List: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /rates, Method: GET}}
+        Put: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /rates/{material}, Method: PUT}}
+
+  CoachFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers.coach.lambda_handler
+      MemorySize: 1024
+      Layers: [!Ref StrandsLayer]
+      Policies:
+        - DynamoDBReadPolicy: {TableName: !Ref UsersTable}
+        - DynamoDBReadPolicy: {TableName: !Ref ScansTable}
+        - DynamoDBReadPolicy: {TableName: !Ref RatesTable}
+        - DynamoDBReadPolicy: {TableName: !Ref SocietiesTable}
+        - DynamoDBReadPolicy: {TableName: !Ref StatsTable}
+        - Statement:
+            - Effect: Allow
+              Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
+              Resource: "*"
+      Events:
+        Coach: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /coach, Method: POST}}
+
+  AdminFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers.admin.lambda_handler
+      MemorySize: 1024
+      Environment:
+        Variables:
+          ADMIN_KEY: !Ref AdminKey
+      Policies:
+        - DynamoDBCrudPolicy: {TableName: !Ref UsersTable}
+        - DynamoDBCrudPolicy: {TableName: !Ref SocietiesTable}
+        - DynamoDBCrudPolicy: {TableName: !Ref ScansTable}
+        - DynamoDBCrudPolicy: {TableName: !Ref BundlesTable}
+        - DynamoDBCrudPolicy: {TableName: !Ref RatesTable}
+        - DynamoDBCrudPolicy: {TableName: !Ref StatsTable}
+      Events:
+        Seed: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /admin/seed, Method: POST}}
+        Reset: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /admin/reset, Method: POST}}
+
+Outputs:
+  ApiUrl:
+    Description: HTTP API base URL (set as VITE_API_URL in the frontend)
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
+  PhotoBucketName:
+    Value: !Ref PhotoBucket

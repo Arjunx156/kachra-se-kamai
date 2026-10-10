@@ -1,0 +1,17 @@
+version = 0.1
+
+[default.global.parameters]
+stack_name = "kachra-se-kamai"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.deploy.parameters]
+stack_name = "kachra-se-kamai"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+confirm_changeset = false
+# AdminKey is a secret: pass it at deploy time, never commit it:
+#   sam deploy --parameter-overrides AdminKey=<your-long-random-key>

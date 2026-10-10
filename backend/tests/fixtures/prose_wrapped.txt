@@ -1,0 +1,5 @@
+Sure! Here is the analysis of the dustbin:
+```json
+{"isWasteImage": true, "segregationScore": 80, "tip": "Flatten cardboard boxes to save space.", "items": [{"name": "cardboard box", "material": "CARDBOARD", "count": 2, "estWeightKg": 0.5, "brand": null}]}
+```
+Let me know if you need anything else.
