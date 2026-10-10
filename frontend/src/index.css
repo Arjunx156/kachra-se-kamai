@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-cream font-sans text-slate antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display text-slate;
+  }
+  :focus-visible {
+    outline: 3px solid #f2a900;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-3xl bg-white p-5 shadow-card;
+  }
+  .btn {
+    @apply inline-flex min-h-[48px] items-center justify-center gap-2 rounded-2xl px-5 font-display text-lg font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-leaf text-white hover:bg-leaf-700;
+  }
+  .btn-money {
+    @apply btn bg-marigold text-slate hover:bg-marigold-600;
+  }
+  .btn-ghost {
+    @apply btn border-2 border-cream-300 bg-white text-slate hover:border-leaf-200;
+  }
+  .label {
+    @apply text-xs font-semibold uppercase tracking-wider text-slate/60;
+  }
+  .num {
+    @apply font-display font-bold tabular-nums;
+  }
+}
+
+.leaflet-container {
+  font-family: Mukta, system-ui, sans-serif;
+  border-radius: 1.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
