@@ -218,7 +218,7 @@ Resources:
       Events:
         Create: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /scans, Method: POST}}
         List: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /scans, Method: GET}}
-        Get: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /scans/{scanId}, Method: GET}}
+        Get: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/scans/{scanId}", Method: GET}}
 
   BundlesFunction:
     Type: AWS::Serverless::Function
@@ -234,9 +234,9 @@ Resources:
       Events:
         Build: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /bundles/build, Method: POST}}
         List: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /bundles, Method: GET}}
-        Get: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /bundles/{bundleId}, Method: GET}}
-        Accept: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /bundles/{bundleId}/accept, Method: POST}}
-        Collect: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /bundles/{bundleId}/collect, Method: POST}}
+        Get: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/bundles/{bundleId}", Method: GET}}
+        Accept: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/bundles/{bundleId}/accept", Method: POST}}
+        Collect: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/bundles/{bundleId}/collect", Method: POST}}
 
   RatesFunction:
     Type: AWS::Serverless::Function
@@ -247,7 +247,7 @@ Resources:
         - DynamoDBReadPolicy: {TableName: !Ref UsersTable}
       Events:
         List: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /rates, Method: GET}}
-        Put: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /rates/{material}, Method: PUT}}
+        Put: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/rates/{material}", Method: PUT}}
 
   CoachFunction:
     Type: AWS::Serverless::Function
