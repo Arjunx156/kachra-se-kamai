@@ -81,6 +81,13 @@ npm run dev
 ```
 **To host it on Amplify:** open the Amplify console → *Host web app* → GitHub → this repo, with app root `frontend/`. The build spec is in `amplify.yml`. Add the environment variable `VITE_API_URL`, then add the SPA rewrite: source `</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json)$)([^.]+$)/>`, target `/index.html`, type `200 (Rewrite)`.
 
+### Local preview (no AWS account needed)
+Runs the real Lambda handlers against mocked DynamoDB/S3 (moto), seeded with demo data. Bedrock isn't available locally, so scans return a sample AI reply (labelled in the tip) and the coach shows a notice.
+```bash
+cd backend && .venv/Scripts/pip install "moto[server]" && .venv/Scripts/python local/server.py   # API on :8787
+cd frontend && echo VITE_API_URL=http://127.0.0.1:8787 > .env.local && npm run dev             # http://127.0.0.1:5173
+```
+
 ### Tests
 ```bash
 cd backend && python -m venv .venv && .venv/Scripts/pip install -r requirements.txt   # (bin/ on macOS/Linux)
